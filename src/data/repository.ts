@@ -67,6 +67,7 @@ export const repo = {
       id,
       title: input.title,
       place: input.place,
+      country: input.country,
       startDate: input.startDate,
       endDate: input.endDate,
       note: input.note,
@@ -97,9 +98,13 @@ export const repo = {
       ...existing,
       title: patch.title ?? existing.title,
       place: patch.place ?? existing.place,
+      // `note`/`country` are intentionally-clearable optional fields: use `in`
+      // rather than `??` so an explicit `undefined` (the user cleared it)
+      // isn't mistaken for "field not part of this patch".
+      country: 'country' in patch ? patch.country : existing.country,
       startDate: patch.startDate ?? existing.startDate,
       endDate: patch.endDate ?? existing.endDate,
-      note: patch.note ?? existing.note,
+      note: 'note' in patch ? patch.note : existing.note,
       coverUrl,
       coverBlobId,
     })
@@ -175,6 +180,16 @@ export const repo = {
     }
     await db.photos.bulkPut(created)
     return created
+  },
+
+  async setPhotoCaption(id: string, caption: string): Promise<void> {
+    const trimmed = caption.trim()
+    await db.photos.update(id, { caption: trimmed || undefined })
+  },
+
+  async setPhotoCategory(id: string, category: string | undefined): Promise<void> {
+    const trimmed = category?.trim()
+    await db.photos.update(id, { category: trimmed || undefined })
   },
 
   async deletePhoto(id: string): Promise<void> {

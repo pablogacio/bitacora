@@ -1,8 +1,9 @@
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
-import { X, ChevronLeft, ChevronRight, Trash2, ImageUp, Check } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { X, ChevronLeft, ChevronRight, Trash2, ImageUp, Check, Pencil, Tag } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { Photo } from '../data/types'
 import { formatLong } from '../lib/format'
+import CategoryPicker from './CategoryPicker'
 
 export default function PhotoViewer({
   photos,
@@ -11,6 +12,8 @@ export default function PhotoViewer({
   onChangeIndex,
   onDelete,
   onSetCover,
+  onSetCaption,
+  onSetCategory,
 }: {
   photos: Photo[]
   index: number | null
@@ -18,27 +21,57 @@ export default function PhotoViewer({
   onChangeIndex: (i: number) => void
   onDelete?: (photo: Photo) => void
   onSetCover?: (photo: Photo) => void
+  onSetCaption?: (photo: Photo, caption: string) => void
+  onSetCategory?: (photo: Photo, category: string | undefined) => void
 }) {
   const open = index !== null
   const photo = open ? photos[index as number] : null
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [coverSet, setCoverSet] = useState(false)
+  const [editingCaption, setEditingCaption] = useState(false)
+  const [captionDraft, setCaptionDraft] = useState('')
+  const captionInputRef = useRef<HTMLInputElement>(null)
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
 
   useEffect(() => {
     setConfirmDelete(false)
     setCoverSet(false)
+    setEditingCaption(false)
+    setCategoryPickerOpen(false)
   }, [index])
+
+  function startEditingCaption() {
+    if (!onSetCaption) return
+    setCaptionDraft(photo?.caption || '')
+    setEditingCaption(true)
+  }
+
+  function saveCaption() {
+    if (photo && onSetCaption) onSetCaption(photo, captionDraft)
+    setEditingCaption(false)
+  }
+
+  useEffect(() => {
+    if (editingCaption) captionInputRef.current?.focus()
+  }, [editingCaption])
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
+      if (editingCaption || categoryPickerOpen) {
+        if (e.key === 'Escape') {
+          setEditingCaption(false)
+          setCategoryPickerOpen(false)
+        }
+        return
+      }
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowRight') onChangeIndex(Math.min(photos.length - 1, (index ?? 0) + 1))
       if (e.key === 'ArrowLeft') onChangeIndex(Math.max(0, (index ?? 0) - 1))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, index, photos.length, onClose, onChangeIndex])
+  }, [open, index, photos.length, onClose, onChangeIndex, editingCaption, categoryPickerOpen])
 
   function handleDragEnd(_: unknown, info: PanInfo) {
     if (index === null) return
@@ -82,9 +115,21 @@ export default function PhotoViewer({
             <X size={18} />
           </button>
 
-          <p className="absolute left-6 top-7 z-10 font-body text-xs uppercase tracking-widest2 text-cream/45">
-            {(index as number) + 1} / {photos.length}
-          </p>
+          <div className="absolute left-6 top-7 z-10 flex flex-col items-start gap-2">
+            <p className="font-body text-xs uppercase tracking-widest2 text-cream/45">
+              {(index as number) + 1} / {photos.length}
+            </p>
+
+            {onSetCategory && (
+              <button
+                onClick={() => setCategoryPickerOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-cream/10 px-2.5 py-1 font-body text-[10px] uppercase tracking-widest2 text-cream/70 transition-transform duration-150 active:scale-95"
+              >
+                <Tag size={10} />
+                {photo.category || 'Categoría'}
+              </button>
+            )}
+          </div>
 
           {(index as number) > 0 && (
             <button
@@ -124,7 +169,40 @@ export default function PhotoViewer({
           </motion.div>
 
           <div className="absolute inset-x-0 bottom-8 flex flex-col items-center gap-3 px-8 text-center">
-            {photo.caption && <p className="font-display text-lg italic text-cream/90">{photo.caption}</p>}
+            {editingCaption ? (
+              <div className="flex w-full max-w-xs items-center gap-2">
+                <input
+                  ref={captionInputRef}
+                  value={captionDraft}
+                  onChange={(e) => setCaptionDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveCaption()}
+                  placeholder="Escribe un pie de foto…"
+                  className="w-full border-b border-cream/30 bg-transparent pb-1 text-center font-display text-lg italic text-cream placeholder:text-cream/40 focus:border-cream/70 focus:outline-none"
+                />
+                <button
+                  onClick={saveCaption}
+                  aria-label="Guardar pie de foto"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cream/15 text-cream transition-transform duration-150 active:scale-90"
+                >
+                  <Check size={13} />
+                </button>
+              </div>
+            ) : onSetCaption ? (
+              <button
+                onClick={startEditingCaption}
+                className="flex items-center gap-1.5 transition-transform duration-150 active:scale-95"
+              >
+                {photo.caption ? (
+                  <p className="font-display text-lg italic text-cream/90">{photo.caption}</p>
+                ) : (
+                  <p className="flex items-center gap-1.5 font-body text-[12px] uppercase tracking-widest2 text-cream/35">
+                    <Pencil size={11} /> Añadir pie de foto
+                  </p>
+                )}
+              </button>
+            ) : (
+              photo.caption && <p className="font-display text-lg italic text-cream/90">{photo.caption}</p>
+            )}
             {photo.takenAt && (
               <p className="font-body text-[11px] uppercase tracking-widest2 text-cream/40">
                 {formatLong(photo.takenAt)}
@@ -158,6 +236,18 @@ export default function PhotoViewer({
               </div>
             )}
           </div>
+
+          {onSetCategory && (
+            <CategoryPicker
+              open={categoryPickerOpen}
+              current={photo.category}
+              onClose={() => setCategoryPickerOpen(false)}
+              onSelect={(category) => {
+                onSetCategory(photo, category)
+                setCategoryPickerOpen(false)
+              }}
+            />
+          )}
         </motion.div>
       )}
     </AnimatePresence>

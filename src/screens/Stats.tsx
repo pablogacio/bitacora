@@ -1,12 +1,21 @@
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Globe2 } from 'lucide-react'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
+import CountryTripsSheet from '../components/CountryTripsSheet'
 import { useTrips, usePhotoCounts } from '../data/hooks'
 import { tripDurationDays } from '../lib/format'
+import { countryName } from '../lib/countries'
 
-function parseCountry(place: string): string {
+// d3-geo/topojson/world-atlas are only needed on this screen — keep them out
+// of the main bundle so the rest of the app doesn't pay for a world map.
+const WorldMap = lazy(() => import('../components/WorldMap'))
+
+// Legacy fallback for trips created before the structured country picker
+// existed — best-effort guess from the free-text place field.
+function guessCountry(place: string): string {
   const parts = place
     .split(',')
     .map((p) => p.trim())
@@ -14,11 +23,17 @@ function parseCountry(place: string): string {
   return parts[parts.length - 1] || place
 }
 
+function resolveCountry(trip: { place: string; country?: string }): string {
+  return countryName(trip.country) || guessCountry(trip.place)
+}
+
 const stampRotations = ['-2deg', '1.6deg', '-1deg', '2deg', '-1.4deg', '0.8deg']
 
 export default function Stats() {
   const trips = useTrips()
   const photoCounts = usePhotoCounts()
+  const navigate = useNavigate()
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
 
   const stats = useMemo(() => {
     const list = trips || []
@@ -26,12 +41,18 @@ export default function Stats() {
     const totalDays = list.reduce((sum, t) => sum + tripDurationDays(t.startDate, t.endDate), 0)
     const countryMap = new Map<string, number>()
     list.forEach((t) => {
-      const country = parseCountry(t.place)
+      const country = resolveCountry(t)
       countryMap.set(country, (countryMap.get(country) || 0) + 1)
     })
     const countries = Array.from(countryMap.entries()).sort((a, b) => b[1] - a[1])
-    return { totalTrips: list.length, totalPhotos, totalDays, countries }
+    const visitedCodes = new Set(list.map((t) => t.country).filter((c): c is string => !!c))
+    return { totalTrips: list.length, totalPhotos, totalDays, countries, visitedCodes }
   }, [trips, photoCounts])
+
+  const tripsInSelectedCountry = useMemo(() => {
+    if (!selectedCountry || !trips) return []
+    return trips.filter((t) => t.country === selectedCountry)
+  }, [trips, selectedCountry])
 
   return (
     <PageTransition className="relative z-10 h-screen overflow-y-auto no-scrollbar pb-32">
@@ -70,6 +91,30 @@ export default function Stats() {
               />
             </div>
 
+            {stats.visitedCodes.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                className="mt-9"
+              >
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="font-body text-[11px] font-semibold uppercase tracking-widest2 text-ink/40">
+                    Mapa
+                  </span>
+                  <div className="h-px flex-1 bg-ink/10" />
+                </div>
+                <div className="overflow-hidden rounded-xl2 bg-cream px-2 py-3 shadow-soft">
+                  <Suspense fallback={<Skeleton className="h-[196px] w-full" />}>
+                    <WorldMap visited={stats.visitedCodes} onSelectCountry={setSelectedCountry} />
+                  </Suspense>
+                </div>
+                <p className="mt-2 px-1 font-body text-[11px] text-ink/40">
+                  Toca un país resaltado para ver sus viajes.
+                </p>
+              </motion.div>
+            )}
+
             <div className="mt-9">
               <div className="mb-3 flex items-center gap-3">
                 <span className="font-body text-[11px] font-semibold uppercase tracking-widest2 text-ink/40">
@@ -86,6 +131,15 @@ export default function Stats() {
           </>
         )}
       </div>
+
+      <CountryTripsSheet
+        open={selectedCountry !== null}
+        countryLabel={countryName(selectedCountry ?? undefined) || ''}
+        trips={tripsInSelectedCountry}
+        photoCounts={photoCounts || {}}
+        onClose={() => setSelectedCountry(null)}
+        onSelectTrip={(tripId) => navigate(`/viaje/${tripId}`)}
+      />
     </PageTransition>
   )
 }

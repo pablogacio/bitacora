@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { ArrowLeft, MapPin, CalendarDays, ImagePlus, Compass, Trash2 } from 'lucide-react'
+import { ArrowLeft, MapPin, CalendarDays, ImagePlus, Compass, Trash2, Pencil } from 'lucide-react'
 import PageTransition from '../components/PageTransition'
 import PhotoGrid from '../components/PhotoGrid'
 import PhotoViewer from '../components/PhotoViewer'
@@ -21,7 +21,19 @@ export default function TripDetail() {
   const [importing, setImporting] = useState(false)
   const [confirmDeleteTrip, setConfirmDeleteTrip] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    ;(photos || []).forEach((p) => p.category && set.add(p.category))
+    return Array.from(set).sort()
+  }, [photos])
+
+  const filteredPhotos = useMemo(() => {
+    if (!activeCategory) return photos || []
+    return (photos || []).filter((p) => p.category === activeCategory)
+  }, [photos, activeCategory])
 
   useEffect(() => {
     if (deleting) return
@@ -37,8 +49,8 @@ export default function TripDetail() {
   const heroScale = useTransform(scrollY, [-100, 0], [1.15, 1])
 
   const { count: visibleCount, hasMore, sentinelRef } = useIncrementalReveal(
-    photos?.length ?? 0,
-    tripId ?? '',
+    filteredPhotos.length,
+    `${tripId ?? ''}:${activeCategory ?? ''}`,
   )
 
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -115,6 +127,13 @@ export default function TripDetail() {
           >
             <ArrowLeft size={18} />
           </button>
+          <button
+            onClick={() => navigate(`/viaje/${tripId}/editar`)}
+            className="absolute right-5 top-6 flex h-9 w-9 items-center justify-center rounded-full bg-cream/15 text-cream backdrop-blur-sm transition-transform duration-150 active:scale-90"
+            aria-label="Editar viaje"
+          >
+            <Pencil size={16} />
+          </button>
         </div>
 
         <div className="relative z-10 -mt-6 rounded-t-[28px] bg-paper px-6 pt-7">
@@ -168,8 +187,39 @@ export default function TripDetail() {
             </div>
           ) : photos.length > 0 ? (
             <>
-              <PhotoGrid photos={photos} visibleCount={visibleCount} onOpen={setViewerIndex} />
-              {hasMore && <div ref={sentinelRef} className="h-8 w-full" />}
+              {categories.length > 0 && (
+                <div className="mb-4 flex gap-2 overflow-x-auto no-scrollbar">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`shrink-0 rounded-full px-3.5 py-1.5 font-body text-[11px] font-semibold uppercase tracking-widest2 transition-transform duration-150 active:scale-95 ${
+                      activeCategory === null ? 'bg-ink text-cream' : 'bg-ink/[0.06] text-ink/50'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {categories.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setActiveCategory(c)}
+                      className={`shrink-0 rounded-full px-3.5 py-1.5 font-body text-[11px] font-semibold uppercase tracking-widest2 transition-transform duration-150 active:scale-95 ${
+                        activeCategory === c ? 'bg-ink text-cream' : 'bg-ink/[0.06] text-ink/50'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filteredPhotos.length > 0 ? (
+                <>
+                  <PhotoGrid photos={filteredPhotos} visibleCount={visibleCount} onOpen={setViewerIndex} />
+                  {hasMore && <div ref={sentinelRef} className="h-8 w-full" />}
+                </>
+              ) : (
+                <p className="py-10 text-center font-body text-sm text-ink/40">
+                  No hay fotos en "{activeCategory}"
+                </p>
+              )}
             </>
           ) : (
             <button
@@ -196,16 +246,17 @@ export default function TripDetail() {
       </div>
 
       <PhotoViewer
-        photos={photos || []}
+        photos={filteredPhotos}
         index={viewerIndex}
         onClose={() => setViewerIndex(null)}
         onChangeIndex={setViewerIndex}
         onSetCover={(photo) => tripId && repo.setTripCover(tripId, photo.id)}
+        onSetCaption={(photo, caption) => repo.setPhotoCaption(photo.id, caption)}
+        onSetCategory={(photo, category) => repo.setPhotoCategory(photo.id, category)}
         onDelete={async (photo) => {
-          const list = photos || []
-          const pos = list.findIndex((p) => p.id === photo.id)
+          const pos = filteredPhotos.findIndex((p) => p.id === photo.id)
           await repo.deletePhoto(photo.id)
-          const remaining = list.length - 1
+          const remaining = filteredPhotos.length - 1
           if (remaining <= 0) setViewerIndex(null)
           else setViewerIndex(Math.min(pos, remaining - 1))
         }}

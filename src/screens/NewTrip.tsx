@@ -1,22 +1,44 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { X, MapPin, ImagePlus } from 'lucide-react'
+import { X, MapPin, ImagePlus, Globe2, ChevronRight } from 'lucide-react'
 import { repo } from '../data/repository'
+import { useTrip } from '../data/hooks'
+import { countryName } from '../lib/countries'
+import CountryPicker from '../components/CountryPicker'
 
 export default function NewTrip() {
   const navigate = useNavigate()
+  const { tripId } = useParams()
+  const isEdit = Boolean(tripId)
+  const existingTrip = useTrip(tripId)
+
   const [title, setTitle] = useState('')
   const [place, setPlace] = useState('')
+  const [country, setCountry] = useState<string | undefined>(undefined)
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [note, setNote] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [hydrated, setHydrated] = useState(!isEdit)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canSave = title.trim().length > 0 && startDate.length > 0 && !saving
+  useEffect(() => {
+    if (!isEdit || hydrated || !existingTrip) return
+    setTitle(existingTrip.title)
+    setPlace(existingTrip.place)
+    setCountry(existingTrip.country)
+    setStartDate(existingTrip.startDate)
+    setEndDate(existingTrip.endDate)
+    setNote(existingTrip.note || '')
+    setCoverPreview(existingTrip.coverUrl || null)
+    setHydrated(true)
+  }, [isEdit, hydrated, existingTrip])
+
+  const canSave = title.trim().length > 0 && startDate.length > 0 && !saving && hydrated
 
   function pickCover(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -28,15 +50,22 @@ export default function NewTrip() {
   async function handleSave() {
     if (!canSave) return
     setSaving(true)
-    const trip = await repo.createTrip({
+    const payload = {
       title: title.trim(),
       place: place.trim(),
+      country,
       startDate,
       endDate: endDate || startDate,
       note: note.trim() || undefined,
       coverFile: coverFile || undefined,
-    })
-    navigate(`/viaje/${trip.id}`, { replace: true })
+    }
+    if (isEdit && tripId) {
+      await repo.updateTrip(tripId, payload)
+      navigate(`/viaje/${tripId}`, { replace: true })
+    } else {
+      const trip = await repo.createTrip(payload)
+      navigate(`/viaje/${trip.id}`, { replace: true })
+    }
   }
 
   return (
@@ -56,7 +85,7 @@ export default function NewTrip() {
           <X size={18} />
         </button>
         <span className="font-body text-[11px] font-semibold uppercase tracking-widest2 text-ink/40">
-          Nuevo viaje
+          {isEdit ? 'Editar viaje' : 'Nuevo viaje'}
         </span>
         <button
           onClick={handleSave}
@@ -96,10 +125,21 @@ export default function NewTrip() {
           <input
             value={place}
             onChange={(e) => setPlace(e.target.value)}
-            placeholder="Lugar (ciudad, país)"
+            placeholder="Lugar (ciudad)"
             className="w-full bg-transparent font-body text-[15px] text-ink placeholder:text-ink/35 focus:outline-none"
           />
         </div>
+
+        <button
+          onClick={() => setCountryPickerOpen(true)}
+          className="mt-5 flex w-full items-center gap-2 border-b border-ink/15 pb-3 text-left transition-transform duration-150 active:scale-[0.99]"
+        >
+          <Globe2 size={15} className="text-ink/35" />
+          <span className={`w-full font-body text-[15px] ${country ? 'text-ink' : 'text-ink/35'}`}>
+            {country ? countryName(country) : 'País'}
+          </span>
+          <ChevronRight size={15} className="text-ink/25" />
+        </button>
 
         <div className="mt-5 flex gap-4">
           <label className="flex-1">
@@ -134,6 +174,16 @@ export default function NewTrip() {
           className="mt-6 w-full resize-none rounded-xl2 bg-ink/[0.03] p-4 font-display text-[15px] italic leading-relaxed text-ink/80 placeholder:text-ink/30 focus:outline-none"
         />
       </div>
+
+      <CountryPicker
+        open={countryPickerOpen}
+        current={country}
+        onClose={() => setCountryPickerOpen(false)}
+        onSelect={(code) => {
+          setCountry(code)
+          setCountryPickerOpen(false)
+        }}
+      />
     </motion.div>
   )
 }

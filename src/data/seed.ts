@@ -6,6 +6,7 @@ const demo = (n: number) => `/demo/p${String(n).padStart(2, '0')}.jpg`
 interface SeedTrip {
   title: string
   place: string
+  country: string
   startDate: string
   endDate: string
   note: string
@@ -16,6 +17,7 @@ const seedTrips: SeedTrip[] = [
   {
     title: 'Kioto en otoño',
     place: 'Kioto, Japón',
+    country: 'JP',
     startDate: '2025-11-02',
     endDate: '2025-11-10',
     note: 'Templos entre arces rojos, té verde por las mañanas y el sonido de la grava bajo los zapatos.',
@@ -24,6 +26,7 @@ const seedTrips: SeedTrip[] = [
   {
     title: 'Tierra de fuego y hielo',
     place: 'Islandia',
+    country: 'IS',
     startDate: '2025-06-14',
     endDate: '2025-06-22',
     note: 'Carreteras vacías, cascadas heladas y un cielo que no se decidía a oscurecer.',
@@ -32,6 +35,7 @@ const seedTrips: SeedTrip[] = [
   {
     title: 'Costa de la Toscana',
     place: 'Toscana, Italia',
+    country: 'IT',
     startDate: '2024-09-05',
     endDate: '2024-09-13',
     note: 'Cipreses, vino tinto y siestas largas después de comer demasiado.',
@@ -40,6 +44,7 @@ const seedTrips: SeedTrip[] = [
   {
     title: 'Zocos y desierto',
     place: 'Marruecos',
+    country: 'MA',
     startDate: '2024-03-20',
     endDate: '2024-03-28',
     note: 'El olor a especias en Marrakech y una noche entera mirando estrellas en las dunas.',
@@ -61,6 +66,7 @@ export async function ensureSeedData(): Promise<void> {
         id,
         title: seed.title,
         place: seed.place,
+        country: seed.country,
         startDate: seed.startDate,
         endDate: seed.endDate,
         note: seed.note,

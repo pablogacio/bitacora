@@ -36,7 +36,10 @@ export default function App() {
 
   if (!ready) return <div className="h-screen bg-paper" />
 
-  const isModal = location.pathname === '/nuevo-viaje' || location.pathname === '/importar'
+  const isModal =
+    location.pathname === '/nuevo-viaje' ||
+    location.pathname === '/importar' ||
+    location.pathname.endsWith('/editar')
 
   return (
     <div
@@ -51,6 +54,7 @@ export default function App() {
           <Route path="/ajustes" element={<Settings />} />
           <Route path="/viaje/:tripId" element={<TripDetail />} />
           <Route path="/nuevo-viaje" element={<NewTrip />} />
+          <Route path="/viaje/:tripId/editar" element={<NewTrip />} />
           <Route path="/importar" element={<ImportReview />} />
         </Routes>
       </AnimatePresence>
