@@ -51,7 +51,7 @@ export default function Stats() {
 
   const tripsInSelectedCountry = useMemo(() => {
     if (!selectedCountry || !trips) return []
-    return trips.filter((t) => t.country === selectedCountry)
+    return trips.filter((t) => resolveCountry(t) === selectedCountry)
   }, [trips, selectedCountry])
 
   return (
@@ -106,7 +106,10 @@ export default function Stats() {
                 </div>
                 <div className="overflow-hidden rounded-xl2 bg-cream px-2 py-3 shadow-soft">
                   <Suspense fallback={<Skeleton className="h-[196px] w-full" />}>
-                    <WorldMap visited={stats.visitedCodes} onSelectCountry={setSelectedCountry} />
+                    <WorldMap
+                      visited={stats.visitedCodes}
+                      onSelectCountry={(code) => setSelectedCountry(countryName(code) || code)}
+                    />
                   </Suspense>
                 </div>
                 <p className="mt-2 px-1 font-body text-[11px] text-ink/40">
@@ -124,7 +127,13 @@ export default function Stats() {
               </div>
               <div className="flex flex-wrap gap-3">
                 {stats.countries.map(([country, count], i) => (
-                  <CountryStamp key={country} country={country} count={count} index={i} />
+                  <CountryStamp
+                    key={country}
+                    country={country}
+                    count={count}
+                    index={i}
+                    onSelect={() => setSelectedCountry(country)}
+                  />
                 ))}
               </div>
             </div>
@@ -134,7 +143,7 @@ export default function Stats() {
 
       <CountryTripsSheet
         open={selectedCountry !== null}
-        countryLabel={countryName(selectedCountry ?? undefined) || ''}
+        countryLabel={selectedCountry || ''}
         trips={tripsInSelectedCountry}
         photoCounts={photoCounts || {}}
         onClose={() => setSelectedCountry(null)}
@@ -158,17 +167,29 @@ function StatTile({ value, label, index }: { value: number; label: string; index
   )
 }
 
-function CountryStamp({ country, count, index }: { country: string; count: number; index: number }) {
+function CountryStamp({
+  country,
+  count,
+  index,
+  onSelect,
+}: {
+  country: string
+  count: number
+  index: number
+  onSelect: () => void
+}) {
   return (
-    <motion.div
+    <motion.button
+      onClick={onSelect}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
+      whileTap={{ scale: 0.94 }}
       transition={{ duration: 0.35, delay: 0.2 + index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-md border border-ink/15 bg-cream px-4 py-2.5 shadow-soft"
+      className="rounded-md border border-ink/15 bg-cream px-4 py-2.5 text-left shadow-soft"
       style={{ rotate: stampRotations[index % stampRotations.length] }}
     >
       <p className="font-display text-sm text-ink">{country}</p>
       {count > 1 && <p className="font-body text-[10px] uppercase tracking-widest2 text-ink/40">{count} viajes</p>}
-    </motion.div>
+    </motion.button>
   )
 }
